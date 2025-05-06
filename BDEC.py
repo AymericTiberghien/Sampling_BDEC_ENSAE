@@ -24,10 +24,10 @@ class BDEC:
         self.temp_target = 1
         self.delta_t = delta_t
         self.T = T
-        self.init_particles_hot = init_particles_hot
-        self.init_particles_target = init_particles_target
-        self.current_particles_hot = self.init_particles_hot
-        self.current_particles_target = self.init_particles_target
+        # self.init_particles_hot = init_particles_hot
+        # self.init_particles_target = init_particles_target
+        self.current_particles_hot = init_particles_hot
+        self.current_particles_target = init_particles_target
         self.is_new = False
 
     def update_hot(self,m):
@@ -48,23 +48,25 @@ class BDEC:
     
     def update_target(self,m):
         if self.is_new==False:
-            for i in range(self.T+m):
-                print(i)
+            print('target in lu bd')
+            for i in range(m,self.T+m+1):
                 self.sampler_target=GaussianMixtureULA(self.weights, self.means, 
                                               self.covs, self.temp_target, 
                                               self.delta_t)
                 self.current_particles_target=(
                     self.sampler_target.langevin_update(
                         self.current_particles_target))
+                print("target apres lu: "+ str(np.isnan(self.current_particles_target).sum()))
                 self.sampler_target=BDLS_algo(self.weights, self.means,
                                               self.covs, self.temp_target, 
                                               self.delta_t, self.T,
                                               self.current_particles_target)
                 self.current_particles_target=self.sampler_target.BD()
+                print("target apres lu et bd: "+ str(np.isnan(self.current_particles_target).sum()))
                 
         else:
-            for i in range(self.T+m):
-                print(i)
+            # print('target in mto bd')
+            for i in range(m,self.T+m+1):
                 mto=MetropolizedTransitionOperator(self.weights, self.means, 
                                                    self.covs, self.temp_target,
                                                    self.delta_t, self.T,self.M,
@@ -72,18 +74,23 @@ class BDEC:
                                                    self.current_particles_target
                                                    )
                 self.current_particles_target=mto.update_particles()
+                # print("target apres mto: "+ str(np.isnan(self.current_particles_target).sum()))
                 self.sampler_target=BDLS_algo(self.weights, self.means, 
                                               self.covs, self.temp_target, 
                                               self.delta_t,self.T,
                                               self.current_particles_target)                
                 self.current_particles_target=self.sampler_target.BD()
+                # print("target apres mto et bd: "+ str(np.isnan(self.current_particles_target).sum()))
     
     def run(self):
+        particules=[]
         for j in range(1,self.J+1):
-            for m in range((self.J-1)*self.T):
-                self.update_hot(m)
-                self.exploration_component(j)
-                self.update_target(m)
-                print(m)
+            print("Debut de la boucle "+str(j))
+            self.update_hot((self.J-1)*self.T)
+            self.exploration_component(j)
+            self.update_target((self.J-1)*self.T)
+            particules.append(self.current_particles_target)
+            print("Boucle "+str(j)+" terminée")
+            # print(self.current_particles_target)
         return self.current_particles_target
 

@@ -56,8 +56,8 @@ class MetropolizedTransitionOperator:
         rho_hat_values_target, rho_hat_values_new_particles=self.rho_hat_values(
 
         )
-        density_vals_target=self.sampler.density(self.particles_target)[1]
-        density_vals_new_particles=self.sampler.density(self.new_particles)[1]
+        density_vals_target=[self.sampler.density(self.particles_target[i])[1] for i in range(len(self.particles_target))]
+        density_vals_new_particles=[self.sampler.density(self.new_particles[i])[1] for i in range(len(self.new_particles))]
         acceptance_ratio=np.zeros(len(self.particles_target))
         for i in range(len(self.particles_target)):
             acceptance_ratio[i]=np.min((1.0,((rho_hat_values_new_particles[i]*

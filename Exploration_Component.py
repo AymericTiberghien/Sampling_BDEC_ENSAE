@@ -29,10 +29,13 @@ class exploration_component:
     
     def nearest_spd(self,A,epsilon=1e-8):
         eigvals, eigvecs = np.linalg.eigh(A)
+        if np.all(eigvals>0):
+            return A
+        else:
     
-        eigvals_clipped = np.clip(eigvals, a_min=epsilon, a_max=None)
+            eigvals_clipped = np.clip(eigvals, a_min=epsilon, a_max=None)
     
-        return eigvecs @ np.diag(eigvals_clipped) @ eigvecs.T
+            return eigvecs @ np.diag(eigvals_clipped) @ eigvecs.T
     
     def find_mode_quasi_newton(self,b):
         y_b_barre = np.array(self.y_barre())[b]
@@ -67,7 +70,7 @@ class exploration_component:
             self.M=np.vstack((self.M,mu_b_barre))
             self.S=np.vstack((self.S,sigma_b_barre))
             new_weights=np.zeros(len(self.M))
-            _,density_vals=self.sampler.density(self.M)
+            density_vals=[self.sampler.density(self.M[i])[1] for i in range(len(self.M))]
             denom=0
             for i in range(len(self.M)):
                 denom+=density_vals[i]*np.sqrt(np.abs(np.linalg.det(
