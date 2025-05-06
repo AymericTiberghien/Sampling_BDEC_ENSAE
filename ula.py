@@ -2,6 +2,10 @@ import numpy as np
 from scipy.stats import multivariate_normal
 from scipy.special import logsumexp
 
+#This file is the one that is very-specific to the example taken as we compute 
+# the density values, its potential V, the gradient and the Hessien of the 
+# target distribution chosen in this class. These functions are thus very 
+# specific to the example.
 
 class GaussianMixtureULA:
     """
@@ -33,36 +37,38 @@ class GaussianMixtureULA:
 
         raws=[0,0,0,0]
         for i in range(4):
-            raws[i]=self.weights[i]*multivariate_normal.pdf(y, mean=self.means[i], cov=self.covs[i])
+            raws[i]=self.weights[i]*multivariate_normal.pdf(y, 
+                                                            mean=self.means[i],
+                                                              cov=self.covs[i])
 
-        # print("raws"+str(raws))
         pdf_vals = np.array(raws)          
         mix_pdf  = np.array(np.sum(pdf_vals))
-        # print("pdf_vals"+str(pdf_vals))
-        # print("mix_pdf"+str(mix_pdf))
         
         return pdf_vals, mix_pdf
+    
 
     def V(self, y: np.ndarray):
         _ ,density_vals = self.density(y)
         potential_value= -np.log(density_vals).flatten()
         return float(potential_value)
+    
+    #In the two following functions, we use the logsumexp function in order to 
+    # avoid dividing by 0 when computing the gradient and the hessien. 
+    # Without it, it leads to langevin update not working correctly
 
     def grad_V(self, x):
         x = np.asarray(x, float)
-    # 1) log-densités p_i = log w_i + log N_i(x)
         log_pis = np.array([
             np.log(w) + comp.logpdf(x)
             for w, comp in zip(self.weights, self.components)
-        ])                              # shape (m,)
+        ])                             
 
-    # 2) log π(x) via logsumexp
-        L = logsumexp(log_pis)         # scalaire
+        L = logsumexp(log_pis)        
 
-    # 3) responsabilités r_i = exp(log_pis - L)
-        r = np.exp(log_pis - L)        # shape (m,), somme ≈ 1
+   
+        r = np.exp(log_pis - L)        
 
-    # 4) ∇V = ∑_i r_i Σ_i^{-1}(x - μ_i)
+   
         grad = np.zeros_like(x)
         for r_i, mu_i, cov_i in zip(r, self.means, self.covs):
             invC = np.linalg.inv(cov_i)
@@ -73,13 +79,13 @@ class GaussianMixtureULA:
 
     def hess_V(self, x):
         x = np.asarray(x, float)
-    # 1) log-densités
+    
         log_pis = np.array([
             np.log(w) + comp.logpdf(x)
             for w, comp in zip(self.weights, self.components)
         ])
         L = logsumexp(log_pis)
-        r = np.exp(log_pis - L)      # responsabilités
+        r = np.exp(log_pis - L)      
 
         d = x.size
         g = np.zeros(d)
@@ -87,28 +93,29 @@ class GaussianMixtureULA:
 
         for r_i, mu_i, cov_i in zip(r, self.means, self.covs):
             invC = np.linalg.inv(cov_i)
-            diff = (x - mu_i).reshape(-1,1)  # (d,1)
+            diff = (x - mu_i).reshape(-1,1)  
 
-        # g_i = ∇ log p_i = -invC @ diff
+        
             g_i = - (invC @ diff).flatten()
-        # H_i = ∇^2 log p_i
+       
             H_i = invC @ diff @ diff.T @ invC - invC
 
             g += r_i * g_i
             H += r_i * H_i
 
-    # Hessian de V = - Hessian de log π
-    # mais log π Hessien = H - g g^T
+    
         H_logpi = H - np.outer(g, g)
         return H_logpi
 
+    #This function uses the gradient previously computed to update the particles.
+    #Implements straight-forwardly Algorithm 2 from the paper. It depends on the
+    #  temperature of the population of the particles being updated.
 
     def langevin_update(self, y: np.ndarray) -> np.ndarray:
         for i in range(len(y)):
             grads = self.grad_V(y[i])
-            # print(grads)
             noise = np.random.normal(0,1,2)
-            y[i] = (y[i] - self.delta_t * self.temp * grads 
+            y[i] = (y[i] - self.delta_t * (1/self.temp) * grads 
                     + np.sqrt(2*self.delta_t) * noise
                     )
         return y
